@@ -1,0 +1,48 @@
+<#
+.SYNOPSIS
+    Renames all files in the current directory with a new base name and a sequential number.
+
+.DESCRIPTION
+    This scridpt prompts you to enter a base name. It then renames each file in the folder (excluding directories and the script itself) by appending an underscore and a three‐digit sequential counter before the file’s original extension.
+
+.EXAMPLE
+    PS C:\YourFolder> .\RenameFiles.ps1
+    Enter the base name for the files: NewName
+    Renamed 'document.txt' to 'NewName_001.txt'
+    Renamed 'image.png' to 'NewName_002.png'
+    All files have been renamed.
+#>
+
+# Get the name of this script so it won't be renamed by accident.
+$scriptName = $MyInvocation.MyCommand.Name
+
+# Prompt for a base name to use for the renamed files.
+$baseName = Read-Host "Enter the base name for the files"
+
+# Retrieve all files in the current directory, excluding directories and this script file.
+$files = Get-ChildItem -File | Where-Object { $_.Name -ne $scriptName }
+
+if ($files.Count -eq 0) {
+    Write-Host "No files found to rename in this folder." -ForegroundColor Yellow
+    exit
+}
+
+# Initialize a counter for numbering the files.
+$counter = 1
+
+foreach ($file in $files) {
+    # Construct a new file name: baseName_counter.extension (e.g., NewName_001.txt)
+    $newName = "{0}_{1:D3}{2}" -f $baseName, $counter, $file.Extension
+
+    try {
+        Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
+        Write-Host "Renamed '$($file.Name)' to '$newName'"
+    }
+    catch {
+        Write-Host "Failed to rename '$($file.Name)': $_" -ForegroundColor Red
+    }
+    
+    $counter++
+}
+
+Write-Host "All files have been renamed." -ForegroundColor Green
