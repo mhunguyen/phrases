@@ -1,31 +1,41 @@
 <#
 .SYNOPSIS
-    Renames multiple files in the current directory based on a specific pattern.
+    Renames files in the current directory based on a user-specified search and replacement pattern.
 
 .DESCRIPTION
-    This script looks for files whose names start with "12" and replaces that
-    prefix with "01". For example, a file named "12 nn 2025.txt" will be renamed to
-    "01 nn 2025.txt".
+    This script prompts the user to input a search pattern (as a regular expression) and a replacement string.
+    It then processes all files in the folder (excluding the script itself) and renames any file whose name
+    matches the search pattern by replacing the matched part with the replacement string.
 
 .EXAMPLE
-    PS C:\YourFolder> .\RenameMultipleFilesWithPattern.ps1
+    PS C:\YourFolder> .\RenameFilesByUserPattern.ps1
+    Enter the search pattern (regular expression): ^12
+    Enter the replacement string: 01
     Renamed '12 nn 2025.txt' to '01 nn 2025.txt'
-    Renamed '12 data.docx' to '01 data.docx'
 #>
 
-# Retrieve all files in the current directory.
-$files = Get-ChildItem -File
+# Retrieve the name of this script to avoid renaming it accidentally.
+$scriptName = $MyInvocation.MyCommand.Name
+
+# Prompt the user to enter the search pattern (regular expression)
+$searchPattern = Read-Host "Enter the search pattern (regular expression)"
+
+# Prompt the user to enter the replacement string
+$replacement = Read-Host "Enter the replacement string"
+
+# Retrieve all files in the current directory, excluding directories and the script file itself.
+$files = Get-ChildItem -File | Where-Object { $_.Name -ne $scriptName }
 
 if ($files.Count -eq 0) {
-    Write-Host "No files found in the current directory."
+    Write-Host "No files found in the current directory." -ForegroundColor Yellow
     exit
 }
 
 foreach ($file in $files) {
-    # Check if the file name starts with "12"
-    if ($file.Name -match '^12') {
-        # Replace "12" at the beginning with "01"
-        $newName = $file.Name -replace '^12', '01'
+    # Check if the file name matches the search pattern
+    if ($file.Name -match $searchPattern) {
+        # Construct the new name by replacing the pattern with the replacement string
+        $newName = $file.Name -replace $searchPattern, $replacement
         
         try {
             Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
