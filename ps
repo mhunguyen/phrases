@@ -1,29 +1,46 @@
 <#
 .SYNOPSIS
-    Renames files in the current directory based on a user-specified search and replacement pattern.
+    Renames files in the current directory by replacing a matched pattern
+    with a computed prior month and year (formatted as "MM yy").
 
 .DESCRIPTION
-    This script prompts the user to input a search pattern (as a regular expression) and a replacement string.
-    It then processes all files in the folder (excluding the script itself) and renames any file whose name
-    matches the search pattern by replacing the matched part with the replacement string.
+    This script defines a function, Get-PriorMonthYearString, which calculates
+    the previous month relative to today and formats it as a two-digit month and
+    a two-digit year (e.g. "01 25"). It then prompts the user for a search pattern
+    (using regular expressions). For every file in the folder (except the script
+    itself) that matches the search pattern, the matching portion is replaced with
+    the computed prior month/year string.
 
 .EXAMPLE
-    PS C:\YourFolder> .\RenameFilesByUserPattern.ps1
-    Enter the search pattern (regular expression): ^12
-    Enter the replacement string: 01
-    Renamed '12 nn 2025.txt' to '01 nn 2025.txt'
+    Suppose today is February 2025. The function will compute the prior month/year
+    as "01 25". If a file name contains "Q4 2024" and you enter "Q4\s+2024" as the
+    search pattern, that portion will be replaced with "01 25", renaming the file accordingly.
+
+.NOTES
+    - If you encounter execution policy restrictions, run:
+      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    - Modify the search pattern prompt as needed if you want to preset values.
 #>
 
-# Retrieve the name of this script to avoid renaming it accidentally.
-$scriptName = $MyInvocation.MyCommand.Name
+# Function to compute the prior month and year as a formatted string ("MM yy")
+function Get-PriorMonthYearString {
+    # Get the date for one month ago
+    $prevDate = (Get-Date).AddMonths(-1)
+    # Format as two-digit month and two-digit year (e.g. "01 25")
+    return $prevDate.ToString("MM yy")
+}
 
-# Prompt the user to enter the search pattern (regular expression)
+# Prompt the user for the search pattern (regular expression)
 $searchPattern = Read-Host "Enter the search pattern (regular expression)"
 
-# Prompt the user to enter the replacement string
-$replacement = Read-Host "Enter the replacement string"
+# Compute the replacement string using the function
+$replacement = Get-PriorMonthYearString
+Write-Host "Replacement string computed as: $replacement"
 
-# Retrieve all files in the current directory, excluding directories and the script file itself.
+# Get the name of this script so we don't accidentally rename it
+$scriptName = $MyInvocation.MyCommand.Name
+
+# Retrieve all files in the current directory, excluding directories and this script
 $files = Get-ChildItem -File | Where-Object { $_.Name -ne $scriptName }
 
 if ($files.Count -eq 0) {
@@ -32,11 +49,10 @@ if ($files.Count -eq 0) {
 }
 
 foreach ($file in $files) {
-    # Check if the file name matches the search pattern
+    # Check if the file name matches the user-supplied pattern
     if ($file.Name -match $searchPattern) {
-        # Construct the new name by replacing the pattern with the replacement string
+        # Replace the matched pattern with the computed prior month/year string
         $newName = $file.Name -replace $searchPattern, $replacement
-        
         try {
             Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
             Write-Host "Renamed '$($file.Name)' to '$newName'"
