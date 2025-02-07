@@ -1,48 +1,38 @@
 <#
 .SYNOPSIS
-    Renames all files in the current directory with a new base name and a sequential number.
+    Renames multiple files in the current directory based on a specific pattern.
 
 .DESCRIPTION
-    This script prompts you to enter a base name. It then renames each file in the folder (excluding directories and the script itself) by appending an underscore and a three‐digit sequential counter before the file’s original extension.
+    This script looks for files whose names start with "12" and replaces that
+    prefix with "01". For example, a file named "12 nn 2025.txt" will be renamed to
+    "01 nn 2025.txt".
 
 .EXAMPLE
-    PS C:\YourFolder> .\RenameFiles.ps1
-    Enter the base name for the files: NewName
-    Renamed 'document.txt' to 'NewName_001.txt'
-    Renamed 'image.png' to 'NewName_002.png'
-    All files have been renamed.
+    PS C:\YourFolder> .\RenameMultipleFilesWithPattern.ps1
+    Renamed '12 nn 2025.txt' to '01 nn 2025.txt'
+    Renamed '12 data.docx' to '01 data.docx'
 #>
 
-# Get the name of this script so it won't be renamed by accident.
-$scriptName = $MyInvocation.MyCommand.Name
-
-# Prompt for a base name to use for the renamed files.
-$baseName = Read-Host "Enter the base name for the files"
-
-# Retrieve all files in the current directory, excluding directories and this script file.
-$files = Get-ChildItem -File | Where-Object { $_.Name -ne $scriptName }
+# Retrieve all files in the current directory.
+$files = Get-ChildItem -File
 
 if ($files.Count -eq 0) {
-    Write-Host "No files found to rename in this folder." -ForegroundColor Yellow
+    Write-Host "No files found in the current directory."
     exit
 }
 
-# Initialize a counter for numbering the files.
-$counter = 1
-
 foreach ($file in $files) {
-    # Construct a new file name: baseName_counter.extension (e.g., NewName_001.txt)
-    $newName = "{0}_{1:D3}{2}" -f $baseName, $counter, $file.Extension
-
-    try {
-        Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
-        Write-Host "Renamed '$($file.Name)' to '$newName'"
+    # Check if the file name starts with "12"
+    if ($file.Name -match '^12') {
+        # Replace "12" at the beginning with "01"
+        $newName = $file.Name -replace '^12', '01'
+        
+        try {
+            Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
+            Write-Host "Renamed '$($file.Name)' to '$newName'"
+        }
+        catch {
+            Write-Host "Error renaming '$($file.Name)': $_" -ForegroundColor Red
+        }
     }
-    catch {
-        Write-Host "Failed to rename '$($file.Name)': $_" -ForegroundColor Red
-    }
-    
-    $counter++
 }
-
-Write-Host "All files have been renamed." -ForegroundColor Green
