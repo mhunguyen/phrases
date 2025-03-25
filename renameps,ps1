@@ -1,65 +1,214 @@
-Public Function getPrincipalPayDate(combinedArray As Variant, resultArray As Variant) As Variant
-'Public Function getPrincipalPayDate(combinedArray As Variant, resultArray As Variant) As Variant
-    Dim outputArray() As Variant
-    Dim dateA1 As Date
-    Dim dateA2 As Date
-    Dim newDate As Date
-    Dim bondType As String
-    Dim monthSR1M As Date
-    Dim monthSR3M As Date
-    Dim i As Integer
-    Dim resultCount As Integer
-    Dim hypoResetDate As Date
-    
-    ' Initialize output array
-    resultCount = UBound(resultArray, 1)
-    ReDim outputArray(1 To resultCount, 1 To 4) ' Adjust size to include hypo reset date
-    dateA1 = combinedArray(2, 2) ' original payment date
-    ' Loop through rows of resultArray
-    For i = 1 To resultCount
-    
-        ' Get original swap payment date
-        Debug.Print " Original Bond Date is "; dateA1
-        ' Get dateA2 from resultArray(i, 2)
-        dateA2 = resultArray(i, 2)
-        Debug.Print " Hypo Date is "; dateA2
-        ' Get bondType from resultArray(i, 1)
-        bondType = resultArray(i, 1)
+Option Explicit
+Option Base 1
 
-        ' Compare the dates
-        If dateA2 > dateA1 Then
+Sub bondsTagging()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim sumColumnB As Double
+    Dim i As Long, j As Long
+    Dim targetSums()  As Double
+    Dim currentTarget As Double
+    Dim currentValue As Double
+    Dim remainingValue As Double
+    Dim carryoverValue As Double
+    Dim wb As Workbook
+    Dim newSheetName As String
+    Dim targetIndex As Long
+    Dim nextCol As Long
+    Dim currentRow As Long
+    Dim startRow As Long
+    Dim rowsCount As Long
+    Dim dataArray As Variant
+    Dim copyArray As Variant
+    Dim carryoverArray(1 To 4) As Variant ' Initialize the carryover array
+    Dim copyIndex As Long
+    Dim selectedCols As Variant
+    Dim k As Integer
+    Dim copyRow As Long
+    Dim notionalLastRow As Long
+    On Error GoTo ErrorHandler
+    Dim parColumn As Long
+    Dim nextparColumn As Long
+    Dim startparColumn As Long
+    Dim headerValuesArray As Variant 'Initialize header array
+    Dim headerRows As Long
+    Dim tableThreeArray As Variant ' Initialize table 3 Array
+    Dim tableThreeRows As Long ' variable to hold the number of rows (correlates to unique bond payment/terms)
+    Dim dervNum As Long
+    Dim dervNumArray() As Variant
+    Dim dictBondDuration As Object
+    Dim uniqueBondTerms() As Variant
+    Dim bondsTagRange As Range
+    Dim hypoLastRow As Long
+    Dim hypoTableStartCell As Range
+    Dim sheetName As String
+    Dim DerivRank As String
+    
 
-            ' Subtract 366 days from dateA2
-            newDate = DateAdd("d", -366, dateA2)
-            Debug.Print "Calculating new payment Date "; newDate
+    ' Set the workbook and worksheet to the active ones
+    Set wb = activeWorkbook
+    sheetName = "Type order -  period A"
+    Set ws = wb.Sheets(sheetName)
+
+    ' Find the last row with data in column B
+    lastRow = ws.Cells(ws.Rows.Count, 2).End(xlUp).Row
+    
+    ' Find the last non-blank row starting from N7
+    notionalLastRow = ws.Range("N7").End(xlDown).Row
+    
+    Set hypoTableStartCell = ws.Range("I31") ' SET INITIAL ROW FOR HYPO TABLE
+    
+    ' Resize the array based on the number of rows
+    ReDim targetSums(1 To notionalLastRow - 7 + 1)
+    nextparColumn = 0
+    ' Loop through the cells and assign values to the array
+    For i = 1 To UBound(targetSums)
+        targetSums(i) = ws.Range("N7").Offset(i - 1, 0).Value
+        'check Par (column O)
+        startparColumn = 19
+        parColumn = startparColumn + nextparColumn
+        ws.Range("N7").Offset(i - 1, 3).FormulaR1C1 = "=SUM(C" & parColumn & ")"
+        nextparColumn = nextparColumn + 4
+    Next i
+    
+    ' Load the data into an array
+    dataArray = ws.Range("B7:G" & lastRow).Value
+    
+    ' Define the columns to be selected in dataArray(Deri Rank, H, I, J, M -> 8, 9, 10, 13)
+    selectedCols = Array(1, 3, 6, 2)
+
+    ' Loop through each target sum
+    nextCol = 1 ' Start at the first column in the new sheet
+    startRow = 1 ' Start copying from the first row of the source sheet
+    carryoverValue = 0 ' Initialize carryover value
+
+    For targetIndex = LBound(targetSums) To UBound(targetSums)
+        currentTarget = targetSums(targetIndex)
+        
+        ' Initialize the sum and rows to copy
+        sumColumnB = carryoverValue
+        rowsCount = 0
+        copyIndex = 1
+        k = 1
+        
+        ' Initialize the copy array
+        ReDim copyArray(1 To lastRow, 1 To 4)
+        
+        ' Loop through each row and sum the values in column B
+        For i = startRow To lastRow
+            currentValue = dataArray(i, 3)
+            If sumColumnB + currentValue <= currentTarget Then
+                'Debug.Print "Current sum of Column B: " & Format(sumColumnB, "#,##") & " Target total is: " & Format(currentTarget, "#,##")
+                'Debug.Print "number in current cell being added to total: " & Format(currentValue, "#,##")
+                sumColumnB = sumColumnB + currentValue
+                rowsCount = rowsCount + 1
+                For j = 1 To UBound(selectedCols)
+                    copyArray(rowsCount, j - LBound(selectedCols) + 1) = dataArray(i, selectedCols(j))
+                Next j
+            Else
+                'Debug.Print "Current sum of Column B: " & Format(sumColumnB, "#,##") & " Target total is: " & Format(currentTarget, "#,##")
+                remainingValue = currentTarget - sumColumnB
+                sumColumnB = sumColumnB + remainingValue
+                rowsCount = rowsCount + 1
+                For j = 1 To UBound(selectedCols)
+                    copyArray(rowsCount, j - LBound(selectedCols) + 1) = dataArray(i, selectedCols(j))
+                    carryoverArray(k) = dataArray(i, selectedCols(j))
+                    k = k + 1
+                Next j
+                copyArray(rowsCount, 2) = remainingValue
+                carryoverValue = currentValue - remainingValue
+                carryoverArray(2) = carryoverValue
+                Exit For
+            End If
+        Next i
+        
+        If targetIndex <> 1 Then
+            copyRow = 8 ' Initiate copyRow variable for 2nd iteration
+            rowsCount = rowsCount + 1
+            headerRows = copyRow - 3
+        Else
+            copyRow = 7 ' Initiate copyRow variable for 1st iteration
+            headerRows = copyRow - 2
+        End If
+        ws.Range(ws.Cells(copyRow, nextCol + 17), ws.Cells(ws.Rows.Count, nextCol + 20)).Select
+        'Clear the data from columns R to U starting from row 7 for each targetIndex
+        ws.Range(ws.Cells(copyRow, nextCol + 17), ws.Cells(ws.Rows.Count, nextCol + 20)).ClearContents
+        
+        ' Copy the accumulated rows in one go
+        If rowsCount > 0 Then
+            ws.Range(ws.Cells(copyRow, nextCol + 17), ws.Cells(rowsCount + 6, nextCol + 20)).Value = copyArray
+        End If
+        
+        DerivRank = "Deriv " & targetIndex 'Derivative Rank
+        ws.Cells(6, nextCol + 17).Value = DerivRank
+        
+        
+        'Copy headers to table
+        headerValuesArray = Array("Bond Ranks", "Hedged par", "Bond pay index", "Bond coupon date")
+        Dim rngHeaders As Range
+        Dim rngBondsTable As Range
+        
+        Set rngHeaders = ws.Range(ws.Cells(headerRows, nextCol + 17), ws.Cells(headerRows, nextCol + 20)) ' Set headers for table
+        Set rngBondsTable = ws.Range(ws.Cells(headerRows, nextCol + 17), ws.Cells(rowsCount + copyRow, nextCol + 20)) ' Set headers for table
+        rngHeaders.Value = headerValuesArray
+        FormatHeaders rngHeaders 'call the headers formatting function and pass it a range
+        FormatBondsTableBorder rngBondsTable 'call the headers formatting function and pass it a range
+        'Formating the content of the table
+        FormatBondsTableContent nextCol + 17, "WholeNumber"
+        FormatBondsTableContent nextCol + 18, "WholeNumber"
+        FormatBondsTableContent nextCol + 19, "Text"
+        FormatBondsTableContent nextCol + 20, "ShortDate"
+        
+        'START CODE FOR TABLE 3
+        ' Call the function to extract unique payment dates and and duration
+        
+        ReDim uniqueBondTerms(1 To rowsCount, 1 To 4)
+        copyRow = 7 ' reset copy rows to capture begin row 7
+        
+        Set bondsTagRange = ws.Range(ws.Cells(copyRow, nextCol + 17), ws.Cells(rowsCount + 6, nextCol + 20))
+        ' Loop through the range and store values in the array so we can extract unique payment terms
+        For i = 1 To rowsCount
+            For j = 1 To 4
+                uniqueBondTerms(i, j) = bondsTagRange.Cells(i, j).Value
+            Next j
+        Next i
+        
+        ' Call the function and store the result in resultArray
+        Dim myArr As Variant
+        myArr = ws.Range(ws.Cells(targetIndex + 6, 9), ws.Cells(targetIndex + 6, 14)) '14 = column N
+        
+        ' Call the public function
+        
+        getHypoTableFunction myArr, uniqueBondTerms, hypoTableStartCell
+        
+        hypoLastRow = ws.Cells(ws.Rows.Count, "I").End(xlUp).Row
+        Debug.Print hypoLastRow
+        
+        ' Prepare for the next target sum
+        startRow = startRow + i - 1
+        Set hypoTableStartCell = ws.Cells(hypoLastRow + 4, 9)
+        
+        If targetIndex < UBound(targetSums) Then
+            nextCol = nextCol + 4
+            currentRow = 1
             
-            ' Loop until newDate is greater than dateA1
-            Do While newDate <= dateA1
-                If bondType = "SR1M" Then
-                    monthSR1M = DateAdd("m", 1, newDate)
-                    newDate = monthSR1M
-                Else
-                    Debug.Print "SR3M bond type"
-                    monthSR3M = DateAdd("m", 3, newDate)
-                    Debug.Print "New date calculated SR3M "; monthSR3M
-                    newDate = monthSR3M
-                End If
-            Loop
-
-            ' Check if the final newDate is greater than dateA1
-            If newDate > dateA1 Then
-            Debug.Print "Successfully Calculated new Hypo Payment Date "; newDate
-                outputArray(i, 1) = resultArray(i, 1) ' Bond Type
-                outputArray(i, 2) = combinedArray(i + 2, 2) 'Actual Bond Payment Date
-                outputArray(i, 3) = newDate ' Hypo Payment Date
-                outputArray(i, 4) = newDate + 1 ' Hypo Reset Date
+            If carryoverValue > 0 Then
+                ws.Range(ws.Cells(7, nextCol + 17), ws.Cells(7, nextCol + 20)).Value = carryoverArray ' Copy remaining array
             End If
         End If
-    Next i
+        
+        If targetIndex = 1 Then
+            startRow = i
+        Else
+            startRow = startRow + 1 - 2
+        End If
+        
+    Next targetIndex
 
-    ' Return the output array
-    getPrincipalPayDate = outputArray
-End Function
+    MsgBox "Operation completed successfully."
+    Exit Sub
 
-
+ErrorHandler:
+    MsgBox "An error occurred: " & Err.Description, vbExclamation, "Error"
+End Sub
 
