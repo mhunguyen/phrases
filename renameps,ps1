@@ -212,3 +212,5 @@ ErrorHandler:
     MsgBox "An error occurred: " & Err.Description, vbExclamation, "Error"
 End Sub
 
+if input dateA =12/25/2024, and condition input ="SR1M", decrease input date A monthly until input dateA is within 30 days of input dateB (6/17/2023)
+
