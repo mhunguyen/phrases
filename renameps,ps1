@@ -1,48 +1,65 @@
-<#
-.SYNOPSIS
-    Renames files in the current directory based on a user-specified search and replacement pattern.
+Public Function getPrincipalPayDate(combinedArray As Variant, resultArray As Variant) As Variant
+'Public Function getPrincipalPayDate(combinedArray As Variant, resultArray As Variant) As Variant
+    Dim outputArray() As Variant
+    Dim dateA1 As Date
+    Dim dateA2 As Date
+    Dim newDate As Date
+    Dim bondType As String
+    Dim monthSR1M As Date
+    Dim monthSR3M As Date
+    Dim i As Integer
+    Dim resultCount As Integer
+    Dim hypoResetDate As Date
+    
+    ' Initialize output array
+    resultCount = UBound(resultArray, 1)
+    ReDim outputArray(1 To resultCount, 1 To 4) ' Adjust size to include hypo reset date
+    dateA1 = combinedArray(2, 2) ' original payment date
+    ' Loop through rows of resultArray
+    For i = 1 To resultCount
+    
+        ' Get original swap payment date
+        Debug.Print " Original Bond Date is "; dateA1
+        ' Get dateA2 from resultArray(i, 2)
+        dateA2 = resultArray(i, 2)
+        Debug.Print " Hypo Date is "; dateA2
+        ' Get bondType from resultArray(i, 1)
+        bondType = resultArray(i, 1)
 
-.DESCRIPTION
-    This script prompts the user to input a search pattern (as a regular expression) and a replacement string.
-    It then processes all files in the folder (excluding the script itself) and renames any file whose name
-    matches the search pattern by replacing the matched part with the replacement string.
+        ' Compare the dates
+        If dateA2 > dateA1 Then
 
-.EXAMPLE
-    PS C:\YourFolder> .\RenameFilesByUserPattern.ps1
-    Enter the search pattern (regular expression): ^12
-    Enter the replacement string: 01
-    Renamed '12 nn 2025.txt' to '01 nn 2025.txt'
-#>
+            ' Subtract 366 days from dateA2
+            newDate = DateAdd("d", -366, dateA2)
+            Debug.Print "Calculating new payment Date "; newDate
+            
+            ' Loop until newDate is greater than dateA1
+            Do While newDate <= dateA1
+                If bondType = "SR1M" Then
+                    monthSR1M = DateAdd("m", 1, newDate)
+                    newDate = monthSR1M
+                Else
+                    Debug.Print "SR3M bond type"
+                    monthSR3M = DateAdd("m", 3, newDate)
+                    Debug.Print "New date calculated SR3M "; monthSR3M
+                    newDate = monthSR3M
+                End If
+            Loop
 
-# Retrieve the name of this script to avoid renaming it accidentally.
-$scriptName = $MyInvocation.MyCommand.Name
+            ' Check if the final newDate is greater than dateA1
+            If newDate > dateA1 Then
+            Debug.Print "Successfully Calculated new Hypo Payment Date "; newDate
+                outputArray(i, 1) = resultArray(i, 1) ' Bond Type
+                outputArray(i, 2) = combinedArray(i + 2, 2) 'Actual Bond Payment Date
+                outputArray(i, 3) = newDate ' Hypo Payment Date
+                outputArray(i, 4) = newDate + 1 ' Hypo Reset Date
+            End If
+        End If
+    Next i
 
-# Prompt the user to enter the search pattern (regular expression)
-$searchPattern = Read-Host "Enter the search pattern (regular expression)"
+    ' Return the output array
+    getPrincipalPayDate = outputArray
+End Function
 
-# Prompt the user to enter the replacement string
-$replacement = Read-Host "Enter the replacement string"
 
-# Retrieve all files in the current directory, excluding directories and the script file itself.
-$files = Get-ChildItem -File | Where-Object { $_.Name -ne $scriptName }
 
-if ($files.Count -eq 0) {
-    Write-Host "No files found in the current directory." -ForegroundColor Yellow
-    exit
-}
-
-foreach ($file in $files) {
-    # Check if the file name matches the search pattern
-    if ($file.Name -match $searchPattern) {
-        # Construct the new name by replacing the pattern with the replacement string
-        $newName = $file.Name -replace $searchPattern, $replacement
-        
-        try {
-            Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
-            Write-Host "Renamed '$($file.Name)' to '$newName'"
-        }
-        catch {
-            Write-Host "Error renaming '$($file.Name)': $_" -ForegroundColor Red
-        }
-    }
-}
