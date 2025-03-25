@@ -1,107 +1,48 @@
 Function AdjustDate(ByVal dateA As Date, ByVal dateB As Date, ByVal condition As String) As Date
-    ' This function decreases dateA by the specified interval until it's within 30 days of dateB
-    ' or until the next decrement would put it before dateB
-    ' SR1M = decrease by 1 month at a time
-    ' SR3M = decrease by 3 months at a time, stopping at the last valid date
+    ' This function adjusts dateA using the specified interval pattern
+    ' to find the first date after dateB that follows the pattern
+    ' SR1M = adjust in 1 month increments
+    ' SR3M = adjust in 3 month increments
     
     ' Check if the condition is one we recognize
     If condition <> "SR1M" And condition <> "SR3M" Then
-        ' If condition doesn't match recognized patterns, return the original date
         AdjustDate = dateA
         Exit Function
     End If
     
-    ' Determine the number of months to subtract in each iteration
-    Dim monthsToSubtract As Integer
+    ' Determine the adjustment interval
+    Dim monthsToAdjust As Integer
     If condition = "SR1M" Then
-        monthsToSubtract = 1
+        monthsToAdjust = 1
     Else ' condition = "SR3M"
-        monthsToSubtract = 3
+        monthsToAdjust = 3
     End If
     
     ' Create a working copy of dateA
     Dim workingDate As Date
     workingDate = dateA
     
-    ' For SR1M, keep decreasing until within 30 days
-    If condition = "SR1M" Then
-        Do While DateDiff("d", dateB, workingDate) > 30
-            workingDate = DateAdd("m", -monthsToSubtract, workingDate)
+    ' First determine if dateB is before or after dateA
+    Dim daysApart As Long
+    daysApart = DateDiff("d", dateA, dateB)
+    
+    ' If dateB is before or equal to dateA, search forward to find first date after dateB
+    If daysApart <= 0 Then
+        ' If dateA is already after dateB, we need to check if it's the first date in the pattern after dateB
+        ' First, go backwards to the last date in the pattern before dateB
+        Do While DateDiff("d", dateB, workingDate) >= 0
+            workingDate = DateAdd("m", -monthsToAdjust, workingDate)
         Loop
-    Else ' For SR3M, check if the next decrement would go past the target
-        Dim nextDate As Date
         
-        Do While DateDiff("d", dateB, workingDate) > 30
-            nextDate = DateAdd("m", -monthsToSubtract, workingDate)
-            
-            ' If the next decrement would put us before dateB, stop at current workingDate
-            If DateDiff("d", dateB, nextDate) < 0 Then
-                Exit Do
-            End If
-            
-            ' Otherwise, proceed with the decrement
-            workingDate = nextDate
+        ' Now go forward one increment to get the first date in the pattern after dateB
+        workingDate = DateAdd("m", monthsToAdjust, workingDate)
+    Else
+        ' If dateB is after dateA, we need to move forward in increments until we pass dateB
+        Do While DateDiff("d", dateB, workingDate) < 0
+            workingDate = DateAdd("m", monthsToAdjust, workingDate)
         Loop
     End If
     
     ' Return the adjusted date
     AdjustDate = workingDate
 End Function
-
-
-
-
-
-
-Sub AdjustDateInCell()
-    Dim dateA As Date
-    Dim dateB As Date
-    Dim condition As String
-    
-    ' Assuming dateA is in cell A1, dateB is in cell B1, and condition is in cell C1
-    dateA = Range("A1").Value
-    dateB = Range("B1").Value
-    condition = Range("C1").Value
-    
-    ' Assuming the result should be placed in cell D1
-    If condition = "SR1M" Or condition = "SR3M" Then
-        ' Determine the number of months to subtract in each iteration
-        Dim monthsToSubtract As Integer
-        If condition = "SR1M" Then
-            monthsToSubtract = 1
-        Else ' condition = "SR3M"
-            monthsToSubtract = 3
-        End If
-        
-        ' Create a working copy of dateA
-        Dim workingDate As Date
-        workingDate = dateA
-        
-        ' For SR1M, keep decreasing until within 30 days
-        If condition = "SR1M" Then
-            Do While DateDiff("d", dateB, workingDate) > 30
-                workingDate = DateAdd("m", -monthsToSubtract, workingDate)
-            Loop
-        Else ' For SR3M, check if the next decrement would go past the target
-            Dim nextDate As Date
-            
-            Do While DateDiff("d", dateB, workingDate) > 30
-                nextDate = DateAdd("m", -monthsToSubtract, workingDate)
-                
-                ' If the next decrement would put us before dateB, stop at current workingDate
-                If DateDiff("d", dateB, nextDate) < 0 Then
-                    Exit Do
-                End If
-                
-                ' Otherwise, proceed with the decrement
-                workingDate = nextDate
-            Loop
-        End If
-        
-        Range("D1").Value = workingDate
-    Else
-        Range("D1").Value = dateA
-    End If
-    
-    MsgBox "Date adjustment completed."
-End Sub
